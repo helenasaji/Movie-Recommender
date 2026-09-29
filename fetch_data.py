@@ -4,7 +4,7 @@ import os
 import time
 
 # Set this securely in your environment variables, or replace the string below for local testing
-API_KEY = os.getenv('TMDB_API_KEY', '60542ad334fd287729f2f848b24b1f42')
+API_KEY = os.getenv('TMDB_API_KEY', 'Your_api_key')
 BASE_URL = 'https://api.themoviedb.org/3'
 
 
