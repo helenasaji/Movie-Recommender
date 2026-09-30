@@ -1,3 +1,2 @@
 fastapi
-pandas
-scikit-learn
+requests
