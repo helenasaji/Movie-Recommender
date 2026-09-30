@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import os
 import requests
 
 app = FastAPI()
@@ -13,15 +12,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+TMDB_API_KEY = '60542ad334fd287729f2f848b74b1f42'
 BASE_URL = 'https://api.themoviedb.org/3'
 
 @app.get("/api/recommend")
 def recommend_movie(movie: str):
-    if not TMDB_API_KEY:
-        raise HTTPException(status_code=500, detail="TMDB API Key not configured on Vercel")
-
-    # 1. Search for the movie ID based on the user's input title
     search_url = f"{BASE_URL}/search/movie"
     params = {
         'api_key': TMDB_API_KEY,
@@ -37,10 +32,8 @@ def recommend_movie(movie: str):
     if not search_data:
         raise HTTPException(status_code=404, detail="Movie not found on TMDB")
     
-    # Get the ID of the first matching Malayalam movie
     movie_id = search_data[0]['id']
 
-    # 2. Fetch similar movies directly from TMDB's recommendation engine
     recommendations_url = f"{BASE_URL}/movie/{movie_id}/similar"
     rec_response = requests.get(recommendations_url, params={'api_key': TMDB_API_KEY, 'with_original_language': 'ml'})
     
@@ -50,7 +43,7 @@ def recommend_movie(movie: str):
     rec_results = rec_response.json().get('results', [])
     
     recommendations = []
-    for item in rec_results[:5]: # Take top 5
+    for item in rec_results[:5]:
         recommendations.append({
             "movie_id": item.get('id'),
             "title": item.get('title')
