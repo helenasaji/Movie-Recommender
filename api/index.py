@@ -9,19 +9,20 @@ CORS(app)
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 BASE_URL = 'https://api.themoviedb.org/3'
 
-@app.route('/api/recommend', methods=['GET'])
-def recommend_movie():
+@app.route('/api/search', methods=['GET'])
+def search_movies():
     if not TMDB_API_KEY:
-        return jsonify({"error": "TMDB_API_KEY not configured in environment variables"}), 500
+        return jsonify({"error": "API key not configured"}), 500
 
-    movie = request.args.get('movie', '')
-    if not movie:
-        return jsonify({"error": "No movie provided"}), 400
+    query = request.args.get('q', '')
+    if len(query.strip()) < 2:
+        return jsonify([])
 
+    # Search Malayalam movies on TMDB dynamically
     search_url = f"{BASE_URL}/search/movie"
     params = {
         'api_key': TMDB_API_KEY,
-        'query': movie,
+        'query': query,
         'with_original_language': 'ml'
     }
     
@@ -29,28 +30,22 @@ def recommend_movie():
     if response.status_code != 200:
         return jsonify({"error": "TMDB search failed"}), 502
     
-    search_data = response.json().get('results', [])
-    if not search_data:
-        return jsonify({"error": "Movie not found on TMDB"}), 404
+    results = response.json().get('results', [])
     
-    movie_id = search_data[0]['id']
-
-    recommendations_url = f"{BASE_URL}/movie/{movie_id}/similar"
-    rec_response = requests.get(recommendations_url, params={'api_key': TMDB_API_KEY})
-    
-    if rec_response.status_code != 200:
-        return jsonify({"error": "Failed to fetch recommendations"}), 502
+    movies = []
+    for item in results[:6]: # Limit to top suggestions
+        poster_path = item.get('poster_path')
+        poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else "https://via.placeholder.com/500x750?text=No+Image"
         
-    rec_results = rec_response.json().get('results', [])
-    
-    recommendations = []
-    for item in rec_results[:5]:
-        recommendations.append({
-            "movie_id": item.get('id'),
-            "title": item.get('title')
+        movies.append({
+            "id": item.get('id'),
+            "title": item.get('title'),
+            "release_date": item.get('release_date', 'N/A'),
+            "overview": item.get('overview', 'No plot available.'),
+            "poster": poster_url
         })
 
-    return jsonify({"recommendations": recommendations})
+    return jsonify(movies)
 
 if __name__ == '__main__':
     app.run()
