@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import os
 import requests
 
 app = FastAPI()
@@ -12,11 +13,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-TMDB_API_KEY = '60542ad334fd287729f2f848b74b1f42'
+TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 BASE_URL = 'https://api.themoviedb.org/3'
 
 @app.get("/api/recommend")
 def recommend_movie(movie: str):
+    if not TMDB_API_KEY:
+        raise HTTPException(status_code=500, detail="TMDB API Key not found in environment variables")
+
     search_url = f"{BASE_URL}/search/movie"
     params = {
         'api_key': TMDB_API_KEY,
