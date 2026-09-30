@@ -3,80 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Malayalam Movie Recommender</title>
-    <!-- Tailwind CSS for styling -->
+    <title>Malayalam Movie Explorer</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel to compile JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-8">
+<body class="bg-gray-900 text-white min-h-screen p-6">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect } = React;
 
         function App() {
-            const [search, setSearch] = useState("");
-            const [results, setResults] = useState([]);
-            const [error, setError] = useState("");
+            const [query, setQuery] = useState("");
+            const [suggestions, setSuggestions] = useState([]);
+            const [selectedMovie, setSelectedMovie] = useState(null);
             const [loading, setLoading] = useState(false);
 
-            const getRecommendations = async () => {
-                if (!search) return;
-                setLoading(true);
-                setError("");
-                setResults([]);
-
-                try {
-                    // Call your Python FastAPI backend
-                    const response = await fetch(`/api/recommend?movie=${encodeURIComponent(search)}`);
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(data.detail || "Movie not found");
+            // Real-time auto-suggest while typing
+            useEffect(() => {
+                const fetchSuggestions = async () => {
+                    if (query.trim().length < 2) {
+                        setSuggestions([]);
+                        return;
                     }
-                    setResults(data.recommendations);
-                } catch (err) {
-                    setError(err.message);
-                } finally {
-                    setLoading(false);
-                }
-            };
+
+                    setLoading(true);
+                    try {
+                        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                        const data = await res.json();
+                        setSuggestions(Array.isArray(data) ? data : []);
+                    } catch (err) {
+                        console.error("Error fetching suggestions:", err);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                const timer = setTimeout(fetchSuggestions, 300); // Debounce search
+                return () => clearTimeout(timer);
+            }, [query]);
 
             return (
-                <div class="max-w-2xl mx-auto pt-16">
-                    <h1 class="text-4xl font-bold mb-2 text-center text-blue-400">Malayalam Movie Recommender</h1>
-                    <p class="text-center text-gray-400 mb-8">Powered by Machine Learning</p>
+                <div className="max-w-3xl mx-auto pt-10">
+                    <h1 className="text-4xl font-bold mb-2 text-center text-blue-400">Malayalam Movie Explorer</h1>
+                    <p className="text-center text-gray-400 mb-8">Search live databases with auto-suggestions & plots</p>
                     
-                    <div class="flex gap-4 mb-8">
+                    {/* Search Input Bar */}
+                    <div className="relative mb-8">
                         <input 
                             type="text" 
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Enter a Malayalam movie (e.g., Premam)"
-                            class="flex-1 p-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Type a Malayalam movie (e.g., Premam, Drishyam)..."
+                            className="w-full p-4 rounded-xl bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500 shadow-lg text-lg"
                         />
-                        <button 
-                            onClick={getRecommendations}
-                            disabled={loading}
-                            class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition disabled:opacity-50"
-                        >
-                            {loading ? "Searching..." : "Recommend"}
-                        </button>
-                    </div>
 
-                    {error && <div class="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-lg mb-6">{error}</div>}
-
-                    <div class="grid gap-4">
-                        {results.map((movie, index) => (
-                            <div key={index} class="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-gray-500 transition">
-                                <h3 class="text-xl font-medium">{movie.title}</h3>
+                        {/* Suggestions Dropdown */}
+                        {suggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 mt-2 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-10 overflow-hidden">
+                                {suggestions.map((movie) => (
+                                    <div 
+                                        key={movie.id}
+                                        onClick={() => {
+                                            setSelectedMovie(movie);
+                                            setSuggestions([]);
+                                            setQuery(movie.title);
+                                        }}
+                                        className="flex items-center gap-4 p-3 hover:bg-gray-700 cursor-pointer transition border-b border-gray-700 last:border-none"
+                                    >
+                                        <img src={movie.poster} alt={movie.title} className="w-12 h-16 object-cover rounded" />
+                                        <div>
+                                            <h4 className="font-semibold text-lg">{movie.title}</h4>
+                                            <p className="text-xs text-gray-400">{movie.release_date.slice(0, 4)}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        )}
                     </div>
+
+                    {/* Selected Movie Details & Plot View */}
+                    {selectedMovie && (
+                        <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-2xl flex flex-col md:flex-row gap-6">
+                            <img src={selectedMovie.poster} alt={selectedMovie.title} className="w-full md:w-48 h-72 object-cover rounded-xl shadow-md mx-auto" />
+                            <div className="flex-1">
+                                <h2 className="text-3xl font-bold text-blue-300 mb-2">{selectedMovie.title}</h2>
+                                <p className="text-sm text-gray-400 mb-4">Release Year: <span className="text-white font-medium">{selectedMovie.release_date}</span></p>
+                                <h3 className="text-xl font-semibold mb-2 text-gray-200">Plot Summary</h3>
+                                <p className="text-gray-300 leading-relaxed">{selectedMovie.overview}</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
