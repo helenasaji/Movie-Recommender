@@ -1,12 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
-import pickle
-import pandas as pd
+import requests
 
 app = FastAPI()
 
-# Enable CORS for the frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,43 +13,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Resolve paths to model files in the api folder
-current_dir = os.path.dirname(os.path.abspath(__file__))
-movie_dict_path = os.path.join(current_dir, 'movie_dict.pkl')
-similarity_path = os.path.join(current_dir, 'similarity.pkl')
-
-# Load model data
-try:
-    with open(movie_dict_path, 'rb') as f:
-        movies_dict = pickle.load(f)
-    movies_df = pd.DataFrame(movies_dict)
-
-    with open(similarity_path, 'rb') as f:
-        similarity = pickle.load(f)
-except FileNotFoundError:
-    movies_df = None
-    similarity = None
-
+TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+BASE_URL = 'https://api.themoviedb.org/3'
 
 @app.get("/api/recommend")
 def recommend_movie(movie: str):
-    if movies_df is None or similarity is None:
-        raise HTTPException(status_code=500, detail="Model files not found")
+    if not TMDB_API_KEY:
+        raise HTTPException(status_code=500, detail="TMDB API Key not configured on Vercel")
 
-    try:
-        # Case-insensitive title match
-        movie_index = movies_df[movies_df['title'].str.lower() == movie.lower()].index[0]
-        distances = similarity[movie_index]
-        movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+    # 1. Search for the movie ID based on the user's input title
+    search_url = f"{BASE_URL}/search/movie"
+    params = {
+        'api_key': TMDB_API_KEY,
+        'query': movie,
+        'with_original_language': 'ml'
+    }
+    
+    response = requests.get(search_url, params=params)
+    if response.status_code != 200:
+        raise HTTPException(status_code=502, detail="Error communicating with TMDB API")
+    
+    search_data = response.json().get('results', [])
+    if not search_data:
+        raise HTTPException(status_code=404, detail="Movie not found on TMDB")
+    
+    # Get the ID of the first matching Malayalam movie
+    movie_id = search_data[0]['id']
 
-        recommendations = []
-        for i in movies_list:
-            recommendations.append({
-                "movie_id": int(movies_df.iloc[i[0]]['movie_id']),
-                "title": str(movies_df.iloc[i[0]]['title'])
-            })
+    # 2. Fetch similar movies directly from TMDB's recommendation engine
+    recommendations_url = f"{BASE_URL}/movie/{movie_id}/similar"
+    rec_response = requests.get(recommendations_url, params={'api_key': TMDB_API_KEY, 'with_original_language': 'ml'})
+    
+    if rec_response.status_code != 200:
+        raise HTTPException(status_code=502, detail="Error fetching recommendations from TMDB")
+        
+    rec_results = rec_response.json().get('results', [])
+    
+    recommendations = []
+    for item in rec_results[:5]: # Take top 5
+        recommendations.append({
+            "movie_id": item.get('id'),
+            "title": item.get('title')
+        })
 
-        return {"recommendations": recommendations}
-
-    except IndexError:
-        raise HTTPException(status_code=404, detail="Movie not found in database")
+    return {"recommendations": recommendations}
