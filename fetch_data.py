@@ -82,7 +82,5 @@ def save_to_csv(movies_data, filename="movies_data.csv"):
 if __name__ == "__main__":
     # To build a robust dataset, increase max_pages to 50 or 100
     malayalam_movies = fetch_movies('ml', max_pages=5)
-    tamil_movies = fetch_movies('ta', max_pages=5)
 
-    all_movies = malayalam_movies + tamil_movies
-    save_to_csv(all_movies)
+    save_to_csv(malayalam_movies)
