@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Malayalam Movie Explorer</title>
+    <title>Malayalam Movie Recommender</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -19,7 +19,8 @@
             const [query, setQuery] = useState("");
             const [suggestions, setSuggestions] = useState([]);
             const [selectedMovie, setSelectedMovie] = useState(null);
-            const [loading, setLoading] = useState(false);
+            const [recommendations, setRecommendations] = useState([]);
+            const [loadingRecs, setLoadingRecs] = useState(false);
 
             // Real-time auto-suggest while typing
             useEffect(() => {
@@ -29,28 +30,43 @@
                         return;
                     }
 
-                    setLoading(true);
                     try {
                         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
                         const data = await res.json();
                         setSuggestions(Array.isArray(data) ? data : []);
                     } catch (err) {
                         console.error("Error fetching suggestions:", err);
-                    } finally {
-                        setLoading(false);
                     }
                 };
 
-                const timer = setTimeout(fetchSuggestions, 300); // Debounce search
+                const timer = setTimeout(fetchSuggestions, 300);
                 return () => clearTimeout(timer);
             }, [query]);
 
+            // Fetch "Movies You May Like" when a movie is selected
+            const handleSelectMovie = async (movie) => {
+                setSelectedMovie(movie);
+                setSuggestions([]);
+                setQuery(movie.title);
+                setLoadingRecs(true);
+
+                try {
+                    const res = await fetch(`/api/recommendations?movie_id=${movie.id}`);
+                    const data = await res.json();
+                    setRecommendations(Array.isArray(data) ? data : []);
+                } catch (err) {
+                    console.error("Error fetching recommendations:", err);
+                } finally {
+                    setLoadingRecs(false);
+                }
+            };
+
             return (
-                <div className="max-w-3xl mx-auto pt-10">
-                    <h1 className="text-4xl font-bold mb-2 text-center text-blue-400">Malayalam Movie Explorer</h1>
-                    <p className="text-center text-gray-400 mb-8">Search live databases with auto-suggestions & plots</p>
+                <div className="max-w-4xl mx-auto pt-10 pb-20">
+                    <h1 className="text-4xl font-bold mb-2 text-center text-blue-400">Malayalam Movie Recommender</h1>
+                    <p className="text-center text-gray-400 mb-8">Search live databases, view plots, and discover movies you may like</p>
                     
-                    {/* Search Input Bar */}
+                    {/* Search Bar */}
                     <div className="relative mb-8">
                         <input 
                             type="text" 
@@ -66,11 +82,7 @@
                                 {suggestions.map((movie) => (
                                     <div 
                                         key={movie.id}
-                                        onClick={() => {
-                                            setSelectedMovie(movie);
-                                            setSuggestions([]);
-                                            setQuery(movie.title);
-                                        }}
+                                        onClick={() => handleSelectMovie(movie)}
                                         className="flex items-center gap-4 p-3 hover:bg-gray-700 cursor-pointer transition border-b border-gray-700 last:border-none"
                                     >
                                         <img src={movie.poster} alt={movie.title} className="w-12 h-16 object-cover rounded" />
@@ -86,7 +98,7 @@
 
                     {/* Selected Movie Details & Plot View */}
                     {selectedMovie && (
-                        <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-2xl flex flex-col md:flex-row gap-6">
+                        <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-2xl flex flex-col md:flex-row gap-6 mb-12">
                             <img src={selectedMovie.poster} alt={selectedMovie.title} className="w-full md:w-48 h-72 object-cover rounded-xl shadow-md mx-auto" />
                             <div className="flex-1">
                                 <h2 className="text-3xl font-bold text-blue-300 mb-2">{selectedMovie.title}</h2>
@@ -94,6 +106,34 @@
                                 <h3 className="text-xl font-semibold mb-2 text-gray-200">Plot Summary</h3>
                                 <p className="text-gray-300 leading-relaxed">{selectedMovie.overview}</p>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Movies You May Like Section */}
+                    {selectedMovie && (
+                        <div>
+                            <h3 className="text-2xl font-bold text-gray-100 mb-6 border-l-4 border-blue-500 pl-3">Movies You May Like</h3>
+                            {loadingRecs ? (
+                                <p className="text-gray-400 text-center py-6">Finding recommendations...</p>
+                            ) : recommendations.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                                    {recommendations.map((rec) => (
+                                        <div 
+                                            key={rec.id} 
+                                            onClick={() => handleSelectMovie(rec)}
+                                            className="bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700 cursor-pointer hover:scale-105 transition transform"
+                                        >
+                                            <img src={rec.poster} alt={rec.title} className="w-full h-64 object-cover" />
+                                            <div className="p-4">
+                                                <h4 className="font-bold text-md truncate">{rec.title}</h4>
+                                                <p className="text-xs text-gray-400">{rec.release_date.slice(0, 4)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-gray-400 text-center py-6">No direct recommendations found for this movie.</p>
+                            )}
                         </div>
                     )}
                 </div>
